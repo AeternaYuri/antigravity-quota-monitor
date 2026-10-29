@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Antigravity 实时配额监视器</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0d0f12;
+      --bg-secondary: #14171d;
+      --card-bg: rgba(24, 28, 36, 0.85);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-border-hover: rgba(138, 180, 248, 0.3);
+      --text-main: #f0f3f8;
+      --text-muted: #9aa0a6;
+      --text-dim: #5f6368;
+      --accent-gemini: #8ab4f8;
+      --accent-gemini-glow: rgba(138, 180, 248, 0.2);
+      --accent-purple: #c58af9;
+      --status-green: #81c995;
+      --status-green-glow: rgba(129, 201, 149, 0.25);
+      --status-yellow: #fdd663;
+      --status-yellow-glow: rgba(253, 214, 99, 0.25);
+      --status-red: #f28b82;
+      --status-red-glow: rgba(242, 139, 130, 0.25);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      padding: 16px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: -120px;
+      right: -120px;
+      width: 320px;
+      height: 320px;
+      background: radial-gradient(circle, rgba(138, 180, 248, 0.12) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .header {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .cat-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #4285f4, #c58af9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 4px 12px rgba(66, 133, 244, 0.3);
+      position: relative;
+      cursor: pointer;
+      user-select: none;
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .cat-avatar:hover {
+      transform: scale(1.1) rotate(5deg);
+    }
+
+    .brand-title {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .brand-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .select-wrap {
+      position: relative;
+    }
+
+    select {
+      background: var(--bg-secondary);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      font-size: 11px;
+      font-family: var(--font-sans);
+      padding: 6px 10px;
+      border-radius: var(--radius-sm);
+      outline: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    select:hover, select:focus {
+      border-color: var(--accent-gemini);
+      color: var(--text-main);
+    }
+
+    .btn {
+      background: var(--bg-secondary);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--font-sans);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--accent-gemini);
+    }
+    .btn:active {
+      transform: scale(0.96);
+    }
+    .btn-icon {
+      font-size: 13px;
+      display: inline-block;
+      transition: transform 0.4s ease;
+    }
+    .btn.loading .btn-icon {
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+
+    .user-badge-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      font-size: 11px;
+      border: 1px solid var(--card-border);
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--status-green);
+      box-shadow: 0 0 8px var(--status-green);
+    }
+
+    .email-container {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .email-container:hover {
+      text-decoration: underline;
+    }
+
+    .plan-pill {
+      background: linear-gradient(90deg, #4285f4, #8ab4f8);
+      color: #000;
+      font-weight: 800;
+      font-size: 9px;
+      padding: 2px 7px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .hero-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+    }
+
+    .hero-card::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #4285f4, #c58af9, #81c995);
+    }
+
+    .hero-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+
+    .hero-model-tag {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent-gemini);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hero-model-name {
+      font-size: 17px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .hero-status-pill {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(129, 201, 149, 0.15);
+      color: var(--status-green);
+      border: 1px solid rgba(129, 201, 149, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .hero-meter-wrap {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .hero-percentage {
+      font-size: 38px;
+      font-weight: 800;
+      font-family: var(--font-sans);
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+
+    .hero-meter-label {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 14px;
+      position: relative;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 10px;
+      background: linear-gradient(90deg, #4285f4, #81c995);
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+
+    .hero-reset-box {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .reset-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .countdown-timer {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--status-yellow);
+      background: rgba(253, 214, 99, 0.1);
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(253, 214, 99, 0.2);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      backdrop-filter: blur(8px);
+      transition: border-color 0.2s;
+    }
+    .stat-card:hover {
+      border-color: var(--card-border-hover);
+    }
+
+    .stat-header {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .stat-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .stat-subtext {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .models-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .model-row {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .model-row:hover {
+      border-color: var(--card-border-hover);
+      background: rgba(30, 35, 45, 0.9);
+    }
+
+    .model-row-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+
+    .model-name-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+    }
+
+    .model-tag {
+      font-size: 9px;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+    }
+
+    .model-quota-num {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    .model-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .model-bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.5s ease;
+    }
+
+    .model-row-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    .actions-bar {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .action-btn {
+      flex: 1;
+      justify-content: center;
+      padding: 8px 12px;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #202124;
+      border: 1px solid var(--accent-gemini);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+      z-index: 100;
+      pointer-events: none;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="brand">
+      <div class="cat-avatar" id="catAvatar" title="Gemini猫猫大小姐 (点击喵一声)">🐾</div>
+      <div>
+        <div class="brand-title">Antigravity 额度监视器</div>
+        <div class="brand-subtitle">Gemini · Claude · GPT 实时配额与回血倒计时</div>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="select-wrap">
+        <select id="refreshInterval">
+          <option value="10000">10秒 自动刷新</option>
+          <option value="30000" selected>30秒 自动刷新</option>
+          <option value="60000">60秒 自动刷新</option>
+          <option value="0">停止轮询</option>
+        </select>
+      </div>
+      <button class="btn" id="refreshBtn">
+        <span class="btn-icon">🔄</span>
+        <span>刷新</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="user-badge-bar">
+    <div class="user-info">
+      <div class="status-dot" id="statusDot"></div>
+      <div class="email-container" id="emailContainer" title="点击切换隐私脱敏显示">
+        <span id="userEmail" style="color: var(--text-main); font-weight: 500;">加载中...</span>
+        <span id="maskBadge" style="font-size: 10px; color: var(--text-dim);">🔒</span>
+      </div>
+      <span class="plan-pill" id="userTier">PRO</span>
+    </div>
+    <div style="color: var(--text-dim); font-size: 10px;" id="lastUpdated">
+      未同步
+    </div>
+  </div>
+
+  <div class="hero-card" id="heroCard">
+    <div class="hero-top">
+      <div>
+        <div class="hero-model-tag">✨ 当前主力模型</div>
+        <div class="hero-model-name" id="heroModelName">Gemini 3.8 Flash (High)</div>
+      </div>
+      <div class="hero-status-pill" id="heroStatusPill">
+        <span>●</span>
+        <span id="heroStatusText">计算中</span>
+      </div>
+    </div>
+
+    <div class="hero-meter-wrap">
+      <div class="hero-percentage" id="heroPercent">--%</div>
+      <div class="hero-meter-label">剩余可用配额</div>
+    </div>
+
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="heroBarFill" style="width: 0%;"></div>
+    </div>
+
+    <div class="hero-reset-box">
+      <div class="reset-label">
+        <span>⏳</span>
+        <span>额度窗口重置倒计时:</span>
+      </div>
+      <div class="countdown-timer" id="heroCountdown">--:--:--</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="stat-card">
+      <div class="stat-header">
+        <span>Claude 4.6 (Sonnet/Opus)</span>
+        <span style="color: var(--accent-purple);">🧠 深度思考</span>
+      </div>
+      <div class="stat-value" id="claudePercent">--%</div>
+      <div class="stat-subtext" id="claudeCountdown">重置: --</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-header">
+        <span>GPT-OSS 120B</span>
+        <span style="color: var(--accent-gemini);">开源集群</span>
+      </div>
+      <div class="stat-value" id="gptPercent">--%</div>
+      <div class="stat-subtext" id="gptCountdown">重置: --</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="stat-card">
+      <div class="stat-header">
+        <span>可用 Prompt 积分</span>
+        <span>🪙 额度</span>
+      </div>
+      <div class="stat-value" id="promptCredits">--</div>
+      <div class="stat-subtext" id="promptMonthly">月度配给: --</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-header">
+        <span>可用 Flow 自动化积分</span>
+        <span>⚡ 流式</span>
+      </div>
+      <div class="stat-value" id="flowCredits">--</div>
+      <div class="stat-subtext" id="flowMonthly">月度配给: --</div>
+    </div>
+  </div>
+
+  <div class="section-title">
+    <span>📊 所有接入模型额度明细</span>
+  </div>
+
+  <div class="models-list" id="modelsList">
+  </div>
+
+  <div class="actions-bar">
+    <button class="btn action-btn" id="copyReportBtn">
+      <span>📋 复制额度报告</span>
+    </button>
+    <button class="btn action-btn" id="toggleSoundBtn">
+      <span id="soundIcon">🔔</span>
+      <span>低额度警报: 开</span>
+    </button>
+  </div>
+
+  <div class="toast" id="toast">已复制到剪贴板！</div>
+
+  <script>
+    let timer = null;
+    let countdownInterval = null;
+    let latestData = null;
+    let soundEnabled = true;
+    let isMasked = true;
+    let rawEmail = '';
+
+    const catMoods = ['🐾', '(ฅ^•ﻌ•^ฅ)', '(ฅ>ω<*ฅ)', '(ฅ`д´ฅ)', '(=^･ω･^=)'];
+    let catIndex = 0;
+    document.getElementById('catAvatar').addEventListener('click', () => {
+      catIndex = (catIndex + 1) % catMoods.length;
+      document.getElementById('catAvatar').innerText = catMoods[catIndex];
+      showToast('Gemini猫猫大小姐为你加油喵！🐾');
+    });
+
+    document.getElementById('emailContainer').addEventListener('click', () => {
+      isMasked = !isMasked;
+      updateEmailDisplay();
+      showToast(isMasked ? '已开启隐私脱敏' : '已显示完整邮箱');
+    });
+
+    function updateEmailDisplay() {
+      const emailEl = document.getElementById('userEmail');
+      const badge = document.getElementById('maskBadge');
+      if (!rawEmail) {
+        emailEl.innerText = '加载中...';
+        return;
+      }
+      if (isMasked && rawEmail.includes('@')) {
+        const [user, domain] = rawEmail.split('@');
+        emailEl.innerText = `${user.slice(0, 2)}***@${domain}`;
+        badge.innerText = '🔒';
+      } else {
+        emailEl.innerText = rawEmail;
+        badge.innerText = '👁️';
+      }
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    function formatCountdown(targetSeconds) {
+      if (targetSeconds === null || targetSeconds === undefined || targetSeconds < 0) return '无需重置';
+      const hours = Math.floor(targetSeconds / 3600);
+      const mins = Math.floor((targetSeconds % 3600) / 60);
+      const secs = Math.floor(targetSeconds % 60);
+      return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    function getColorForFraction(frac) {
+      if (frac === null || frac === undefined) return '#9aa0a6';
+      if (frac > 0.5) return 'linear-gradient(90deg, #4285f4, #81c995)';
+      if (frac > 0.2) return 'linear-gradient(90deg, #fbbc04, #fdd663)';
+      return 'linear-gradient(90deg, #ea4335, #f28b82)';
+    }
+
+    function getTextColorForFraction(frac) {
+      if (frac === null || frac === undefined) return '#9aa0a6';
+      if (frac > 0.5) return '#81c995';
+      if (frac > 0.2) return '#fdd663';
+      return '#f28b82';
+    }
+
+    async function fetchQuota() {
+      const refreshBtn = document.getElementById('refreshBtn');
+      refreshBtn.classList.add('loading');
+
+      try {
+        const res = await fetch('/api/quota');
+        if (!res.ok) throw new Error('网络响应异常: ' + res.status);
+        const data = await res.json();
+        latestData = data;
+        renderData(data);
+        document.getElementById('statusDot').style.background = 'var(--status-green)';
+        document.getElementById('statusDot').style.boxShadow = '0 0 8px var(--status-green)';
+      } catch (err) {
+        console.error('获取配额失败:', err);
+        document.getElementById('statusDot').style.background = 'var(--status-red)';
+        document.getElementById('statusDot').style.boxShadow = '0 0 8px var(--status-red)';
+        showToast('获取配额失败: ' + err.message);
+      } finally {
+        refreshBtn.classList.remove('loading');
+      }
+    }
+
+    function renderData(data) {
+      rawEmail = data.user.email;
+      updateEmailDisplay();
+      document.getElementById('userTier').innerText = data.user.planName.toUpperCase();
+      document.getElementById('lastUpdated').innerText = '已同步: ' + new Date().toLocaleTimeString();
+
+      document.getElementById('promptCredits').innerText = data.credits.promptAvailable.toLocaleString();
+      document.getElementById('promptMonthly').innerText = '月度配给: ' + data.credits.promptMonthly.toLocaleString();
+      document.getElementById('flowCredits').innerText = data.credits.flowAvailable.toLocaleString();
+      document.getElementById('flowMonthly').innerText = '月度配给: ' + data.credits.flowMonthly.toLocaleString();
+
+      const heroModel = data.models.find(m => m.label.includes('Gemini 3.8 Flash (High)')) || data.models[0];
+      if (heroModel) {
+        document.getElementById('heroModelName').innerText = heroModel.label;
+        const pct = heroModel.percentage !== null ? heroModel.percentage + '%' : '100%';
+        const frac = heroModel.fraction !== null ? heroModel.fraction : 1;
+
+        const heroPercentEl = document.getElementById('heroPercent');
+        heroPercentEl.innerText = pct;
+        heroPercentEl.style.color = getTextColorForFraction(frac);
+
+        const heroBar = document.getElementById('heroBarFill');
+        heroBar.style.width = (frac * 100) + '%';
+        heroBar.style.background = getColorForFraction(frac);
+
+        const heroStatusPill = document.getElementById('heroStatusPill');
+        const heroStatusText = document.getElementById('heroStatusText');
+        if (frac > 0.5) {
+          heroStatusText.innerText = '额度充裕';
+          heroStatusPill.style.color = 'var(--status-green)';
+          heroStatusPill.style.background = 'rgba(129, 201, 149, 0.15)';
+          heroStatusPill.style.borderColor = 'rgba(129, 201, 149, 0.3)';
+        } else if (frac > 0.2) {
+          heroStatusText.innerText = '注意余量';
+          heroStatusPill.style.color = 'var(--status-yellow)';
+          heroStatusPill.style.background = 'rgba(253, 214, 99, 0.15)';
+          heroStatusPill.style.borderColor = 'rgba(253, 214, 99, 0.3)';
+        } else {
+          heroStatusText.innerText = '配额告急';
+          heroStatusPill.style.color = 'var(--status-red)';
+          heroStatusPill.style.background = 'rgba(242, 139, 130, 0.15)';
+          heroStatusPill.style.borderColor = 'rgba(242, 139, 130, 0.3)';
+          if (soundEnabled) playLowQuotaBeep();
+        }
+
+        updateHeroCountdown(heroModel);
+      }
+
+      const claude = data.models.find(m => m.label.toLowerCase().includes('claude'));
+      if (claude) {
+        document.getElementById('claudePercent').innerText = claude.percentage !== null ? claude.percentage + '%' : '100%';
+        document.getElementById('claudePercent').style.color = getTextColorForFraction(claude.fraction);
+        document.getElementById('claudeCountdown').innerText = '倒计时: ' + formatCountdown(claude.resetsInSeconds);
+      }
+
+      const gpt = data.models.find(m => m.label.toLowerCase().includes('gpt'));
+      if (gpt) {
+        document.getElementById('gptPercent').innerText = gpt.percentage !== null ? gpt.percentage + '%' : '100%';
+        document.getElementById('gptPercent').style.color = getTextColorForFraction(gpt.fraction);
+        document.getElementById('gptCountdown').innerText = '倒计时: ' + formatCountdown(gpt.resetsInSeconds);
+      }
+
+      const listEl = document.getElementById('modelsList');
+      listEl.innerHTML = '';
+      data.models.forEach(m => {
+        const row = document.createElement('div');
+        row.className = 'model-row';
+        const frac = m.fraction !== null && m.fraction !== undefined ? m.fraction : 1;
+        const pct = m.percentage !== null ? m.percentage + '%' : '100%';
+        const color = getColorForFraction(frac);
+        const textColor = getTextColorForFraction(frac);
+
+        row.innerHTML = `
+          <div class="model-row-header">
+            <div class="model-name-wrap">
+              <span>${m.label}</span>
+              ${m.supportsImages ? '<span class="model-tag">Vision</span>' : ''}
+              ${m.isRecommended ? '<span class="model-tag" style="color:var(--accent-gemini);">推荐</span>' : ''}
+            </div>
+            <div class="model-quota-num" style="color: ${textColor};">${pct}</div>
+          </div>
+          <div class="model-bar-bg">
+            <div class="model-bar-fill" style="width: ${frac * 100}%; background: ${color};"></div>
+          </div>
+          <div class="model-row-footer">
+            <span>重置倒计时: ${formatCountdown(m.resetsInSeconds)}</span>
+            <span>${m.resetTime ? new Date(m.resetTime).toLocaleTimeString() : '滚动窗口正常'}</span>
+          </div>
+        `;
+        listEl.appendChild(row);
+      });
+    }
+
+    function updateHeroCountdown(heroModel) {
+      if (!heroModel || !heroModel.resetTime) {
+        document.getElementById('heroCountdown').innerText = '正常补充中';
+        return;
+      }
+      const diff = Math.max(0, Math.floor((new Date(heroModel.resetTime).getTime() - Date.now()) / 1000));
+      document.getElementById('heroCountdown').innerText = formatCountdown(diff);
+    }
+
+    function playLowQuotaBeep() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, ctx.currentTime);
+        gain.gain.setValueAtTime(0.05, ctx.currentTime);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+      } catch (e) {}
+    }
+
+    clearInterval(countdownInterval);
+    countdownInterval = setInterval(() => {
+      if (!latestData) return;
+      const heroModel = latestData.models.find(m => m.label.includes('Gemini 3.8 Flash (High)')) || latestData.models[0];
+      if (heroModel) updateHeroCountdown(heroModel);
+
+      latestData.models.forEach(m => {
+        if (m.resetsInSeconds > 0) m.resetsInSeconds--;
+      });
+    }, 1000);
+
+    document.getElementById('refreshBtn').addEventListener('click', fetchQuota);
+
+    document.getElementById('refreshInterval').addEventListener('change', (e) => {
+      const val = parseInt(e.target.value, 10);
+      clearInterval(timer);
+      if (val > 0) {
+        timer = setInterval(fetchQuota, val);
+        showToast(`已开启每 ${val / 1000} 秒自动同步`);
+      } else {
+        showToast('已关闭自动轮询');
+      }
+    });
+
+    document.getElementById('copyReportBtn').addEventListener('click', () => {
+      if (!latestData) return;
+      const emailText = isMasked && rawEmail.includes('@')
+        ? `${rawEmail.split('@')[0].slice(0, 2)}***@${rawEmail.split('@')[1]}`
+        : rawEmail;
+
+      let text = `### 📊 Google Antigravity 实时配额报告\n`;
+      text += `- **用户账号**: ${emailText} (${latestData.user.planName})\n`;
+      text += `- **Prompt 积分**: ${latestData.credits.promptAvailable} / ${latestData.credits.promptMonthly}\n`;
+      text += `- **Flow 积分**: ${latestData.credits.flowAvailable} / ${latestData.credits.flowMonthly}\n`;
+      text += `\n| 模型 | 剩余配额 | 窗口重置倒计时 |\n|---|---|---|\n`;
+      latestData.models.forEach(m => {
+        text += `| ${m.label} | ${m.percentage !== null ? m.percentage + '%' : '100%'} | ${formatCountdown(m.resetsInSeconds)} |\n`;
+      });
+      text += `\n*同步时间: ${new Date().toLocaleString()}*`;
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('额度报告已成功复制到剪贴板！');
+      });
+    });
+
+    document.getElementById('toggleSoundBtn').addEventListener('click', () => {
+      soundEnabled = !soundEnabled;
+      document.getElementById('soundIcon').innerText = soundEnabled ? '🔔' : '🔕';
+      document.getElementById('toggleSoundBtn').querySelector('span:last-child').innerText = `低额度警报: ${soundEnabled ? '开' : '关'}`;
+      showToast(`低额度声音警报已${soundEnabled ? '开启' : '关闭'}`);
+    });
+
+    fetchQuota();
+    timer = setInterval(fetchQuota, 30000);
+  </script>
+</body>
+</html>

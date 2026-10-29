@@ -1,0 +1,24 @@
+{
+  "name": "antigravity-quota-monitor",
+  "version": "1.0.0",
+  "description": "Real-time quota, rolling window replenishment countdown, and credits monitor for Google Antigravity.",
+  "type": "module",
+  "main": "src/server.mjs",
+  "bin": {
+    "antigravity-quota": "src/cli.mjs"
+  },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "cli": "node src/cli.mjs",
+    "mcp": "node src/mcp_server.mjs"
+  },
+  "keywords": [
+    "antigravity",
+    "google-gemini",
+    "quota-monitor",
+    "mcp-server",
+    "sidecar"
+  ],
+  "author": "AeternaYuri",
+  "license": "MIT"
+}

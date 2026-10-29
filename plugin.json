@@ -1,0 +1,17 @@
+{
+  "name": "antigravity-quota-monitor",
+  "displayName": "Antigravity Quota Monitor",
+  "version": "1.0.0",
+  "description": "Real-time quota, credits, and model usage monitor for Google Antigravity.",
+  "author": {
+    "name": "AeternaYuri"
+  },
+  "keywords": [
+    "quota",
+    "rate-limit",
+    "credits",
+    "monitor",
+    "gemini",
+    "antigravity"
+  ]
+}
